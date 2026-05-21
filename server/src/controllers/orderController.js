@@ -2,29 +2,14 @@ const Order   = require("../models/Order");
 const Cart    = require("../models/Cart");
 const Product = require("../models/Product");
 
-/* ── 포트원 REST API: 액세스 토큰 발급 ── */
-const getIamportToken = async () => {
-  const res = await fetch("https://api.iamport.kr/users/getToken", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      imp_key:    process.env.IMP_KEY,
-      imp_secret: process.env.IMP_SECRET,
-    }),
+/* ── 포트원 V2 REST API: paymentId로 결제 정보 조회 ── */
+const getPortoneV2Payment = async (paymentId) => {
+  const res = await fetch(`https://api.portone.io/payments/${encodeURIComponent(paymentId)}`, {
+    headers: { Authorization: `PortOne ${process.env.PORTONE_V2_SECRET}` },
   });
   const json = await res.json();
-  if (json.code !== 0) throw new Error("포트원 토큰 발급 실패: " + json.message);
-  return json.response.access_token;
-};
-
-/* ── 포트원 REST API: imp_uid로 결제 정보 조회 ── */
-const getIamportPayment = async (impUid, token) => {
-  const res = await fetch(`https://api.iamport.kr/payments/${impUid}`, {
-    headers: { Authorization: token },
-  });
-  const json = await res.json();
-  if (json.code !== 0) throw new Error("결제 정보 조회 실패: " + json.message);
-  return json.response;
+  if (!res.ok) throw new Error("결제 정보 조회 실패: " + (json.message || res.status));
+  return json;
 };
 
 /* ────────────────────────────────────────────
@@ -99,20 +84,19 @@ const createOrder = async (req, res, next) => {
     const discount   = items.reduce((s, i) => s + (i.price - i.salePrice) * i.quantity, 0);
     const total      = itemsTotal - discount; // 무료 배송
 
-    /* ── 포트원 결제 금액 검증 (운영 환경만 강제 적용) ── */
+    /* ── 포트원 V2 결제 금액 검증 (운영 환경만 강제 적용) ── */
     if (process.env.NODE_ENV === "production") {
       try {
-        const token = await getIamportToken();
-        const paid  = await getIamportPayment(payment.transactionId, token);
+        const paid = await getPortoneV2Payment(payment.transactionId);
 
-        if (paid.status !== "paid") {
+        if (paid.status !== "PAID") {
           res.status(402);
           return next(new Error(`결제가 완료되지 않았습니다. (상태: ${paid.status})`));
         }
-        if (paid.amount !== total) {
+        if (paid.totalAmount !== total) {
           res.status(402);
           return next(new Error(
-            `결제 금액이 일치하지 않습니다. (결제: ${paid.amount}원 / 주문: ${total}원)`
+            `결제 금액이 일치하지 않습니다. (결제: ${paid.totalAmount}원 / 주문: ${total}원)`
           ));
         }
       } catch (verifyErr) {
