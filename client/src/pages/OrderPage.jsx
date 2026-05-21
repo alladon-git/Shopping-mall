@@ -22,11 +22,11 @@ const Svg = ({ size = 20, stroke = 1.6, children }) => (
     {children}
   </svg>
 )
-/* ── 포트원 결제수단 매핑 ── */
+/* ── 포트원 결제수단 매핑 (V1) ── */
 const PAY_CONFIG = {
-  card:          { channelKey: 'channel-key-205aeca2-7c10-4104-b853-51e9431021ba', pay_method: 'card' },
-  bank_transfer: { channelKey: 'channel-key-205aeca2-7c10-4104-b853-51e9431021ba', pay_method: 'trans' },
-  kakao_pay:     { channelKey: 'channel-key-205aeca2-7c10-4104-b853-51e9431021ba', pay_method: 'card' },
+  card:          { pg: 'html5_inicis.INIpayTest', pay_method: 'card' },
+  bank_transfer: { pg: 'html5_inicis.INIpayTest', pay_method: 'trans' },
+  kakao_pay:     { pg: 'kakaopay',                pay_method: 'card' },
 }
 
 const IcoChevL   = () => <Svg size={16} stroke={2}><path d="m15 18-6-6 6-6"/></Svg>
@@ -184,11 +184,11 @@ export default function OrderPage() {
     setErrors({})
 
     const merchantUid = `order_${Date.now()}`
-    const { channelKey, pay_method } = PAY_CONFIG[payMethod]
+    const { pg, pay_method } = PAY_CONFIG[payMethod]
 
     window.IMP.request_pay(
       {
-        channelKey,
+        pg,
         pay_method,
         merchant_uid: merchantUid,
         name: items.length === 1
