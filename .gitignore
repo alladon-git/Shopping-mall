@@ -1,0 +1,33 @@
+# 의존성
+node_modules/
+
+# 환경변수
+.env
+.env.local
+.env.*.local
+
+# 빌드 결과물
+dist/
+dist-ssr/
+
+# 로그
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 스크린샷 / 임시 이미지 (레포에 불필요)
+*.png
+*.jpg
+*.jpeg
+제품이미지/
+
+# 에디터
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Claude Code 설정
+.claude/

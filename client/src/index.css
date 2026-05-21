@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Main page responsive ── */
+@media (max-width: 900px) {
+  .home-nav { display: none !important; }
+}
+@media (max-width: 768px) {
+  .home-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .home-hero { padding: 60px 24px 48px !important; }
+  .home-hero h1 { font-size: 36px !important; }
+  .home-filter-wrap { padding: 48px 24px 16px !important; }
+  .home-grid-wrap { padding: 16px 24px 56px !important; }
+}
