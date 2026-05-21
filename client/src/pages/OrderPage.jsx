@@ -22,11 +22,14 @@ const Svg = ({ size = 20, stroke = 1.6, children }) => (
     {children}
   </svg>
 )
-/* ── 포트원 결제수단 매핑 (V1) ── */
+/* ── 포트원 V2 결제수단 매핑 ── */
+const STORE_ID    = 'store-1da8e4dd-c689-4985-8692-c19e197b11a9'
+const CHANNEL_KEY = 'channel-key-205aeca2-7c10-4104-b853-51e9431021ba'
+
 const PAY_CONFIG = {
-  card:          { pg: 'html5_inicis.INIpayTest', pay_method: 'card' },
-  bank_transfer: { pg: 'html5_inicis.INIpayTest', pay_method: 'trans' },
-  kakao_pay:     { pg: 'kakaopay',                pay_method: 'card' },
+  card:          { payMethod: 'CARD' },
+  bank_transfer: { payMethod: 'TRANSFER' },
+  kakao_pay:     { payMethod: 'EASY_PAY' },
 }
 
 const IcoChevL   = () => <Svg size={16} stroke={2}><path d="m15 18-6-6 6-6"/></Svg>
@@ -121,13 +124,11 @@ export default function OrderPage() {
   })
   const [payMethod, setPayMethod] = useState('card')
 
-  /* 포트원 IMP 초기화 */
+  /* 포트원 V2 SDK 로드 확인 */
   useEffect(() => {
-    if (!window.IMP) {
+    if (!window.PortOne) {
       setErrors({ submit: '결제 모듈을 불러오지 못했습니다. 페이지를 새로고침해 주세요.' })
-      return
     }
-    window.IMP.init(import.meta.env.VITE_IMP_KEY)
   }, [])
 
   /* auth */
@@ -173,9 +174,9 @@ export default function OrderPage() {
     return Object.keys(e).length === 0
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return
-    if (!window.IMP) {
+    if (!window.PortOne) {
       setErrors({ submit: '결제 모듈이 로드되지 않았습니다. 페이지를 새로고침해 주세요.' })
       return
     }
@@ -183,53 +184,57 @@ export default function OrderPage() {
     setSubmitting(true)
     setErrors({})
 
-    const merchantUid = `order_${Date.now()}`
-    const { pg, pay_method } = PAY_CONFIG[payMethod]
+    const paymentId = `order_${Date.now()}`
+    const { payMethod: payMethodV2 } = PAY_CONFIG[payMethod]
+    const orderName = items.length === 1
+      ? items[0].product.name
+      : `${items[0].product.name} 외 ${items.length - 1}건`
 
-    window.IMP.request_pay(
-      {
-        pg,
-        pay_method,
-        merchant_uid: merchantUid,
-        name: items.length === 1
-          ? items[0].product.name
-          : `${items[0].product.name} 외 ${items.length - 1}건`,
-        amount: finalPrice,
-        buyer_name:  form.name,
-        buyer_tel:   form.phone,
-        buyer_addr:  `${form.street} ${form.detail}`.trim(),
-        buyer_postcode: form.zipCode,
-      },
-      async (rsp) => {
-        if (!rsp.success) {
-          setErrors({ submit: rsp.error_msg || '결제가 취소되었습니다.' })
-          setSubmitting(false)
-          return
-        }
+    try {
+      const rsp = await window.PortOne.requestPayment({
+        storeId:    STORE_ID,
+        channelKey: CHANNEL_KEY,
+        paymentId,
+        orderName,
+        totalAmount: finalPrice,
+        currency:   'CURRENCY_KRW',
+        payMethod:  payMethodV2,
+        customer: {
+          fullName:    form.name,
+          phoneNumber: form.phone,
+          address: {
+            addressLine1: form.street,
+            addressLine2: form.detail,
+          },
+        },
+      })
 
-        /* 결제 성공 → 백엔드 주문 생성 */
-        try {
-          const { data } = await api.post('/orders', {
-            shippingAddress: {
-              name:    form.name,
-              phone:   form.phone,
-              zipCode: form.zipCode,
-              street:  form.street,
-              detail:  form.detail,
-            },
-            payment: {
-              method:        payMethod,
-              transactionId: rsp.imp_uid,
-            },
-          })
-          navigate(`/order-complete/${data._id}`)
-        } catch (err) {
-          setErrors({ submit: err.response?.data?.message || '주문 생성에 실패했습니다. 고객센터에 문의해 주세요.' })
-        } finally {
-          setSubmitting(false)
-        }
+      if (rsp.code) {
+        setErrors({ submit: rsp.message || '결제가 취소되었습니다.' })
+        setSubmitting(false)
+        return
       }
-    )
+
+      /* 결제 성공 → 백엔드 주문 생성 */
+      const { data } = await api.post('/orders', {
+        shippingAddress: {
+          name:    form.name,
+          phone:   form.phone,
+          zipCode: form.zipCode,
+          street:  form.street,
+          detail:  form.detail,
+        },
+        payment: {
+          method:        payMethod,
+          transactionId: rsp.paymentId,
+        },
+      })
+      navigate(`/order-complete/${data._id}`)
+    } catch (err) {
+      setErrors({ submit: err.response?.data?.message || '주문 생성에 실패했습니다. 고객센터에 문의해 주세요.' })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const items        = cart?.items ?? []
